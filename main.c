@@ -49,103 +49,13 @@ void twi_init(void) {
   NRF_TWIM0->ENABLE = TWIM_ENABLE_ENABLE_Enabled << TWIM_ENABLE_ENABLE_Pos;
 }
 
-static void write_reg(uint8_t reg, uint8_t data) {
-  uint8_t send[2] = {reg, data};
-
-  NRF_TWIM0->ADDRESS = HDC2080_ADDRESS;
-  NRF_TWIM0->TXD.PTR = (uint32_t)send;
-  NRF_TWIM0->TXD.MAXCNT = 2;
-  NRF_TWIM0->SHORTS = TWIM_SHORTS_LASTTX_STOP_Msk;
-  NRF_TWIM0->EVENTS_STOPPED = 0;
-  NRF_TWIM0->TASKS_STARTTX = 1;
-  while (NRF_TWIM0->EVENTS_STOPPED == 0)
-    ;
-}
-
-static uint8_t read_reg(uint8_t reg) {
-  uint8_t tx_buf[1];
-  uint8_t rx_buf[1];
-
-  NRF_TWIM0->SHORTS =
-      TWIM_SHORTS_LASTTX_STARTRX_Msk | TWIM_SHORTS_LASTRX_STOP_Msk;
-  NRF_TWIM0->ADDRESS = HDC2080_ADDRESS;
-
-  tx_buf[0] = reg;
-  NRF_TWIM0->TXD.MAXCNT = sizeof(tx_buf);
-  NRF_TWIM0->TXD.PTR = (uint32_t)&tx_buf[0];
-
-  NRF_TWIM0->RXD.PTR = (uint32_t)&rx_buf[0];
-  NRF_TWIM0->RXD.MAXCNT = 1;
-
-  NRF_TWIM0->EVENTS_STOPPED = 0;
-  NRF_TWIM0->TASKS_STARTRX = 1;
-
-  while (NRF_TWIM0->EVENTS_STOPPED == 0)
-    ;
-
-  return rx_buf[0];
-}
-
-void twi_write(uint8_t address, uint8_t reg) {
-  NRF_TWI0->ADDRESS = address;
-
-  NRF_TWI0->TXD = reg;
-  NRF_TWI0->TASKS_STARTTX = 1;
-  while (!NRF_TWI0->EVENTS_TXDSENT)
-    ;
-  NRF_TWI0->EVENTS_TXDSENT = 0;
-
-  NRF_TWI0->TASKS_STOP = 1;
-  while (!NRF_TWI0->EVENTS_STOPPED)
-    ;
-  NRF_TWI0->EVENTS_STOPPED = 0;
-}
-
-uint8_t twi_read_byte(uint8_t address) {
-  NRF_TWI0->ADDRESS = address;
-
-  NRF_TWI0->TASKS_STARTRX = 1;
-  while (!NRF_TWI0->EVENTS_RXDREADY)
-    ;
-  uint8_t data = NRF_TWI0->RXD;
-  NRF_TWI0->EVENTS_RXDREADY = 0;
-
-  NRF_TWI0->TASKS_STOP = 1;
-  while (!NRF_TWI0->EVENTS_STOPPED)
-    ;
-  NRF_TWI0->EVENTS_STOPPED = 0;
-
-  return data;
-}
-
-float read_temp(void) {
-  uint8_t byte[2];
-  uint16_t temp;
-
-  byte[0] = read_reg(TEMP_LOW);
-  byte[1] = read_reg(TEMP_HIGH);
-
-  temp = ((uint16_t)byte[1] << 8) | byte[0];
-
-  return ((float)temp) * 165.0f / 65536.0f - 40.5f;
-}
-
-void int_to_ascii(int16_t value, char *buf) {
-  int16_t int_part = value / 100;
-  int16_t frac_part = value % 100;
-  if (frac_part < 0)
-    frac_part = -frac_part;
-  if (int_part < 0) {
-    *buf++ = '-';
-    int_part = -int_part;
-  }
-  sprintf(buf, "%d.%02d C\r\n", int_part, frac_part);
-}
-
 void trigger_measurement(void) {
   static uint8_t measurement_configuration_register = 0x0F;
+  static uint8_t denisov_send[] = {0x0F, 0x00};
+  uint8_t config_content = 0;
 
-  NRF_TWIM0->ADDRESS = 0x40;
+  // Запрос конфигурации
+  NRF_TWIM0->ADDRESS = HDC2080_ADDRESS;
   NRF_TWIM0->TXD.PTR = (uint32_t)&measurement_configuration_register;
   NRF_TWIM0->TXD.MAXCNT = 1;
   NRF_TWIM0->SHORTS = TWIM_SHORTS_LASTTX_STOP_Msk;
@@ -154,13 +64,26 @@ void trigger_measurement(void) {
   }
   NRF_TWIM0->EVENTS_STOPPED = 0;
 
-  uint8_t reg_value = 0;
-  NRF_TWIM0->ADDRESS = 0x40;
-  NRF_TWIM0->RXD.PTR = (uint32_t)&reg_value;
+  // Чтение конфигурации
+  NRF_TWIM0->ADDRESS = HDC2080_ADDRESS;
+  NRF_TWIM0->RXD.PTR = (uint32_t)&config_content;
   NRF_TWIM0->RXD.MAXCNT = 1;
   NRF_TWIM0->SHORTS = TWIM_SHORTS_LASTRX_STOP_Msk;
   NRF_TWIM0->TASKS_STARTRX = 1;
 
+  while (!NRF_TWIM0->EVENTS_STOPPED) {
+  }
+  NRF_TWIM0->EVENTS_STOPPED = 0;
+
+  config_content |= 0x01;
+
+  denisov_send[0] = 0x0F;
+  denisov_send[1] = config_content;
+  NRF_TWIM0->ADDRESS = HDC2080_ADDRESS;
+  NRF_TWIM0->TXD.PTR = (uint32_t)&denisov_send;
+  NRF_TWIM0->TXD.MAXCNT = sizeof(denisov_send);
+  NRF_TWIM0->SHORTS = TWIM_SHORTS_LASTTX_STOP_Msk;
+  NRF_TWIM0->TASKS_STARTTX = 1;
   while (!NRF_TWIM0->EVENTS_STOPPED) {
   }
   NRF_TWIM0->EVENTS_STOPPED = 0;
@@ -208,6 +131,103 @@ void set_measurement_mode() {
   uart_send_string("Configuration finish!\r\n");
 }
 
+float read_temp(void) {
+  uint8_t byte[2];
+  uint16_t temp;
+
+  static uint8_t temp_low = 0x00;
+  static uint8_t temp_high = 0x01;
+
+  // Запрос на чтение данных температуры регистра 0x00
+  NRF_TWIM0->ADDRESS = HDC2080_ADDRESS;
+  NRF_TWIM0->TXD.PTR = (uint32_t)&temp_low;
+  NRF_TWIM0->TXD.MAXCNT = 1;
+  NRF_TWIM0->SHORTS = TWIM_SHORTS_LASTTX_STOP_Msk;
+  NRF_TWIM0->TASKS_STARTTX = 1;
+  while (!NRF_TWIM0->EVENTS_STOPPED) {
+  }
+  NRF_TWIM0->EVENTS_STOPPED = 0;
+
+  uint8_t reading;
+  // Чтение данных температуры из регистра 0x00
+  NRF_TWIM0->ADDRESS = HDC2080_ADDRESS;
+  NRF_TWIM0->RXD.PTR = (uint32_t)&reading;
+  NRF_TWIM0->RXD.MAXCNT = 1;
+  NRF_TWIM0->SHORTS = TWIM_SHORTS_LASTRX_STOP_Msk;
+  NRF_TWIM0->TASKS_STARTRX = 1;
+
+  while (!NRF_TWIM0->EVENTS_STOPPED) {
+  }
+  NRF_TWIM0->EVENTS_STOPPED = 0;
+
+  byte[0] = reading;
+
+  // Запрос на чтение данных температуры регистра 0x01
+  NRF_TWIM0->ADDRESS = HDC2080_ADDRESS;
+  NRF_TWIM0->TXD.PTR = (uint32_t)&temp_high;
+  NRF_TWIM0->TXD.MAXCNT = 1;
+  NRF_TWIM0->SHORTS = TWIM_SHORTS_LASTTX_STOP_Msk;
+  NRF_TWIM0->TASKS_STARTTX = 1;
+  while (!NRF_TWIM0->EVENTS_STOPPED) {
+  }
+  NRF_TWIM0->EVENTS_STOPPED = 0;
+
+  // Чтение данных температуры из регистра 0x01
+  NRF_TWIM0->ADDRESS = HDC2080_ADDRESS;
+  NRF_TWIM0->RXD.PTR = (uint32_t)&reading;
+  NRF_TWIM0->RXD.MAXCNT = 1;
+  NRF_TWIM0->SHORTS = TWIM_SHORTS_LASTRX_STOP_Msk;
+  NRF_TWIM0->TASKS_STARTRX = 1;
+
+  while (!NRF_TWIM0->EVENTS_STOPPED) {
+  }
+  NRF_TWIM0->EVENTS_STOPPED = 0;
+
+  byte[1] = reading;
+
+  temp = ((uint16_t)byte[1] << 8) | byte[0];
+
+  return ((float)temp) * 165.0f / 65536.0f - 40.5f;
+}
+
+void uart_send_int(int value) {
+  char buf[12]; // Достаточно для int32
+  int i = 0;
+  if (value < 0) {
+    uart_send_char('-');
+    value = -value;
+  }
+  if (value == 0) {
+    uart_send_char('0');
+    return;
+  }
+  while (value > 0) {
+    buf[i++] = (value % 10) + '0';
+    value /= 10;
+  }
+  while (i > 0) {
+    uart_send_char(buf[--i]);
+  }
+}
+
+void uart_send_float(float val) {
+  if (val < 0 && val > -1.0f) {
+    uart_send_char('-'); // Отдельная проверка на -0.XX
+  }
+  int32_t int_part = (int32_t)val;
+  int32_t frac_part =
+      (int32_t)((val > 0 ? val - int_part : int_part - val) * 100 +
+                0.5f); // округление
+  uart_send_string("temperature: ");
+  uart_send_int(int_part);
+  uart_send_char('.');
+  if (frac_part < 10) {
+    uart_send_char('0'); // ведущий ноль, если например .04
+  }
+  uart_send_int(frac_part);
+  uart_send_string(" C\r\n");
+}
+
 int main(void) {
   uart_init();
   uart_send_string("HDC2080 Example!\r\n");
@@ -215,15 +235,13 @@ int main(void) {
   // reset
   reset();
   set_measurement_mode();
+  uart_send_string("Success!\r\n");
   while (true) {
-    uart_send_string("Success!\r\n");
     nrf_delay_ms(1000);
     trigger_measurement();
-    float temperature = 0;
-    // temperature = read_temp();
 
-    // char buf[32];
-    // int_to_ascii(temperature, buf);
-    // uart_send_string(buf);
+    static float temperature = 0;
+    temperature = read_temp();
+    uart_send_float(temperature);
   }
 }
