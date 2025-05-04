@@ -11,8 +11,11 @@
         "nrf_uarte.h": "c",
         "stdio.h": "c",
         "stdint.h": "c",
-        "nrf52840_bitfields.h": "c"
+        "nrf52840_bitfields.h": "c",
+        "hdc2080.h": "c",
+        "nrf_drv_twi.h": "c",
+        "stdbool.h": "c"
     },
     "nrf-connect.topdir": "${nrf-connect.sdk:2.6.1}",
-    "cortex-debug.variableUseNaturalFormat": true
+    "cortex-debug.variableUseNaturalFormat": false
 }
