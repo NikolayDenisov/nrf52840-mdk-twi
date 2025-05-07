@@ -39,6 +39,42 @@ void uart_send_string(const char *str) {
   }
 }
 
+static void twi_wait_stop() {
+  while (!NRF_TWIM0->EVENTS_STOPPED) {
+  }
+  NRF_TWIM0->EVENTS_STOPPED = 0;
+}
+
+static void twi_tx(uint8_t *data, uint8_t len) {
+  NRF_TWIM0->SHORTS = TWIM_SHORTS_LASTTX_STOP_Msk;
+  NRF_TWIM0->TXD.PTR = (uint32_t)data;
+  NRF_TWIM0->TXD.MAXCNT = len;
+  NRF_TWIM0->TASKS_STARTTX = 1;
+  twi_wait_stop();
+}
+
+static void twi_rx(uint8_t *data, uint8_t len) {
+  NRF_TWIM0->RXD.PTR = (uint32_t)data;
+  NRF_TWIM0->RXD.MAXCNT = len;
+  NRF_TWIM0->SHORTS = TWIM_SHORTS_LASTRX_STOP_Msk;
+  NRF_TWIM0->TASKS_STARTRX = 1;
+  twi_wait_stop();
+}
+
+static void twi_write_register(uint8_t reg, uint8_t val) {
+  uint8_t buf[] = {reg, val};
+  NRF_TWIM0->ADDRESS = HDC2080_ADDRESS;
+  twi_tx(buf, sizeof(buf));
+}
+
+static uint8_t twi_read_register(uint8_t reg) {
+  uint8_t val;
+  NRF_TWIM0->ADDRESS = HDC2080_ADDRESS;
+  twi_tx(&reg, 1);
+  twi_rx(&val, 1);
+  return val;
+}
+
 void twi_init(void) {
   NRF_TWIM0->PSEL.SCL = TWI_SCL_PIN;
   NRF_TWIM0->PSEL.SDA = TWI_SDA_PIN;
@@ -54,79 +90,28 @@ void trigger_measurement(void) {
   static uint8_t denisov_send[] = {0x0F, 0x00};
   uint8_t config_content = 0;
 
-  // Запрос конфигурации
-  NRF_TWIM0->ADDRESS = HDC2080_ADDRESS;
-  NRF_TWIM0->TXD.PTR = (uint32_t)&measurement_configuration_register;
-  NRF_TWIM0->TXD.MAXCNT = 1;
-  NRF_TWIM0->SHORTS = TWIM_SHORTS_LASTTX_STOP_Msk;
-  NRF_TWIM0->TASKS_STARTTX = 1;
-  while (!NRF_TWIM0->EVENTS_STOPPED) {
-  }
-  NRF_TWIM0->EVENTS_STOPPED = 0;
+  twi_tx(&measurement_configuration_register, 1);
 
   // Чтение конфигурации
-  NRF_TWIM0->ADDRESS = HDC2080_ADDRESS;
-  NRF_TWIM0->RXD.PTR = (uint32_t)&config_content;
-  NRF_TWIM0->RXD.MAXCNT = 1;
-  NRF_TWIM0->SHORTS = TWIM_SHORTS_LASTRX_STOP_Msk;
-  NRF_TWIM0->TASKS_STARTRX = 1;
-
-  while (!NRF_TWIM0->EVENTS_STOPPED) {
-  }
-  NRF_TWIM0->EVENTS_STOPPED = 0;
+  twi_rx(&config_content, 1);
 
   config_content |= 0x01;
 
   denisov_send[0] = 0x0F;
   denisov_send[1] = config_content;
-  NRF_TWIM0->ADDRESS = HDC2080_ADDRESS;
-  NRF_TWIM0->TXD.PTR = (uint32_t)&denisov_send;
-  NRF_TWIM0->TXD.MAXCNT = sizeof(denisov_send);
-  NRF_TWIM0->SHORTS = TWIM_SHORTS_LASTTX_STOP_Msk;
-  NRF_TWIM0->TASKS_STARTTX = 1;
-  while (!NRF_TWIM0->EVENTS_STOPPED) {
-  }
-  NRF_TWIM0->EVENTS_STOPPED = 0;
+  twi_tx(&denisov_send, 2);
 }
 
 void reset() {
   uart_send_string("Reset start!\r\n");
-  uint8_t reset_buffer[] = {0x0E, 0x80};
-
-  NRF_TWIM0->SHORTS = TWIM_SHORTS_LASTTX_STOP_Msk;
-
-  NRF_TWIM0->ADDRESS = HDC2080_ADDRESS;
-  NRF_TWIM0->TXD.PTR = (uint32_t)&reset_buffer;
-  NRF_TWIM0->TXD.MAXCNT = sizeof(reset_buffer);
-
-  // Запускаем передачу
-  NRF_TWIM0->TASKS_STARTTX = 1;
-
-  // Ожидаем завершения
-  while (!NRF_TWIM0->EVENTS_STOPPED) {
-  }
-  NRF_TWIM0->EVENTS_STOPPED = 0;
+  twi_write_register(INT_CONFIG, 0x80);
   nrf_delay_ms(50);
   uart_send_string("Reset finish!\r\n");
 }
 
 void set_measurement_mode() {
-  uint8_t measurement_buffer[] = {0x0F, 0x02};
-
   uart_send_string("Configuration start!\r\n");
-  NRF_TWIM0->SHORTS = TWIM_SHORTS_LASTTX_STOP_Msk;
-
-  NRF_TWIM0->ADDRESS = HDC2080_ADDRESS;
-  NRF_TWIM0->TXD.PTR = (uint32_t)&measurement_buffer;
-  NRF_TWIM0->TXD.MAXCNT = sizeof(measurement_buffer);
-
-  // Запускаем передачу
-  NRF_TWIM0->TASKS_STARTTX = 1;
-
-  // Ожидаем завершения
-  while (!NRF_TWIM0->EVENTS_STOPPED) {
-  }
-  NRF_TWIM0->EVENTS_STOPPED = 0;
+  twi_write_register(MEASUREMENT_CONFIG, 0x02);
   nrf_delay_ms(130);
   uart_send_string("Configuration finish!\r\n");
 }
@@ -139,49 +124,19 @@ float read_temp(void) {
   static uint8_t temp_high = 0x01;
 
   // Запрос на чтение данных температуры регистра 0x00
-  NRF_TWIM0->ADDRESS = HDC2080_ADDRESS;
-  NRF_TWIM0->TXD.PTR = (uint32_t)&temp_low;
-  NRF_TWIM0->TXD.MAXCNT = 1;
-  NRF_TWIM0->SHORTS = TWIM_SHORTS_LASTTX_STOP_Msk;
-  NRF_TWIM0->TASKS_STARTTX = 1;
-  while (!NRF_TWIM0->EVENTS_STOPPED) {
-  }
-  NRF_TWIM0->EVENTS_STOPPED = 0;
+  twi_tx(&temp_low, 1);
 
   uint8_t reading;
   // Чтение данных температуры из регистра 0x00
-  NRF_TWIM0->ADDRESS = HDC2080_ADDRESS;
-  NRF_TWIM0->RXD.PTR = (uint32_t)&reading;
-  NRF_TWIM0->RXD.MAXCNT = 1;
-  NRF_TWIM0->SHORTS = TWIM_SHORTS_LASTRX_STOP_Msk;
-  NRF_TWIM0->TASKS_STARTRX = 1;
-
-  while (!NRF_TWIM0->EVENTS_STOPPED) {
-  }
-  NRF_TWIM0->EVENTS_STOPPED = 0;
+  twi_rx(&reading, 1);
 
   byte[0] = reading;
 
   // Запрос на чтение данных температуры регистра 0x01
-  NRF_TWIM0->ADDRESS = HDC2080_ADDRESS;
-  NRF_TWIM0->TXD.PTR = (uint32_t)&temp_high;
-  NRF_TWIM0->TXD.MAXCNT = 1;
-  NRF_TWIM0->SHORTS = TWIM_SHORTS_LASTTX_STOP_Msk;
-  NRF_TWIM0->TASKS_STARTTX = 1;
-  while (!NRF_TWIM0->EVENTS_STOPPED) {
-  }
-  NRF_TWIM0->EVENTS_STOPPED = 0;
+  twi_tx(&temp_high, 1);
 
   // Чтение данных температуры из регистра 0x01
-  NRF_TWIM0->ADDRESS = HDC2080_ADDRESS;
-  NRF_TWIM0->RXD.PTR = (uint32_t)&reading;
-  NRF_TWIM0->RXD.MAXCNT = 1;
-  NRF_TWIM0->SHORTS = TWIM_SHORTS_LASTRX_STOP_Msk;
-  NRF_TWIM0->TASKS_STARTRX = 1;
-
-  while (!NRF_TWIM0->EVENTS_STOPPED) {
-  }
-  NRF_TWIM0->EVENTS_STOPPED = 0;
+  twi_rx(&reading, 1);
 
   byte[1] = reading;
 
@@ -232,7 +187,6 @@ int main(void) {
   uart_init();
   uart_send_string("HDC2080 Example!\r\n");
   twi_init();
-  // reset
   reset();
   set_measurement_mode();
   uart_send_string("Success!\r\n");
