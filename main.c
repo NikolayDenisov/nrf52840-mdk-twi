@@ -84,14 +84,9 @@ void twi_init(void) {
 }
 
 void trigger_measurement(void) {
-  static uint8_t measurement_configuration_register = 0x0F;
-  static uint8_t send[] = {0x0F, 0x00};
-  uint8_t config_content = 0;
-
-  config_content = twi_read_register(MEASUREMENT_CONFIG);
+  uint8_t config_content = twi_read_register(MEASUREMENT_CONFIG);
   config_content |= 0x01;
-
-  twi_write_register(measurement_configuration_register, config_content);
+  twi_write_register(MEASUREMENT_CONFIG, config_content);
 }
 
 void reset() {
