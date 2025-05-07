@@ -78,28 +78,20 @@ static uint8_t twi_read_register(uint8_t reg) {
 void twi_init(void) {
   NRF_TWIM0->PSEL.SCL = TWI_SCL_PIN;
   NRF_TWIM0->PSEL.SDA = TWI_SDA_PIN;
-
   NRF_TWIM0->FREQUENCY = TWIM_FREQUENCY_FREQUENCY_K100;
   NRF_TWIM0->SHORTS = 0;
-
   NRF_TWIM0->ENABLE = TWIM_ENABLE_ENABLE_Enabled << TWIM_ENABLE_ENABLE_Pos;
 }
 
 void trigger_measurement(void) {
   static uint8_t measurement_configuration_register = 0x0F;
-  static uint8_t denisov_send[] = {0x0F, 0x00};
+  static uint8_t send[] = {0x0F, 0x00};
   uint8_t config_content = 0;
 
-  twi_tx(&measurement_configuration_register, 1);
-
-  // Чтение конфигурации
-  twi_rx(&config_content, 1);
-
+  config_content = twi_read_register(MEASUREMENT_CONFIG);
   config_content |= 0x01;
 
-  denisov_send[0] = 0x0F;
-  denisov_send[1] = config_content;
-  twi_tx(denisov_send, 2);
+  twi_write_register(measurement_configuration_register, config_content);
 }
 
 void reset() {
@@ -120,25 +112,8 @@ float read_temp(void) {
   uint8_t byte[2];
   uint16_t temp;
 
-  static uint8_t temp_low = 0x00;
-  static uint8_t temp_high = 0x01;
-
-  // Запрос на чтение данных температуры регистра 0x00
-  twi_tx(&temp_low, 1);
-
-  uint8_t reading;
-  // Чтение данных температуры из регистра 0x00
-  twi_rx(&reading, 1);
-
-  byte[0] = reading;
-
-  // Запрос на чтение данных температуры регистра 0x01
-  twi_tx(&temp_high, 1);
-
-  // Чтение данных температуры из регистра 0x01
-  twi_rx(&reading, 1);
-
-  byte[1] = reading;
+  byte[0] = twi_read_register(TEMP_LOW);
+  byte[1] = twi_read_register(TEMP_HIGH);
 
   temp = ((uint16_t)byte[1] << 8) | byte[0];
 
