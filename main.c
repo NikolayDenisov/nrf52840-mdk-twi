@@ -99,7 +99,7 @@ void trigger_measurement(void) {
 
   denisov_send[0] = 0x0F;
   denisov_send[1] = config_content;
-  twi_tx(&denisov_send, 2);
+  twi_tx(denisov_send, 2);
 }
 
 void reset() {
@@ -191,8 +191,8 @@ int main(void) {
   set_measurement_mode();
   uart_send_string("Success!\r\n");
   while (true) {
-    nrf_delay_ms(1000);
     trigger_measurement();
+    nrf_delay_ms(1000);
 
     static float temperature = 0;
     temperature = read_temp();
