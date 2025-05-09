@@ -14,7 +14,9 @@
         "nrf52840_bitfields.h": "c",
         "hdc2080.h": "c",
         "nrf_drv_twi.h": "c",
-        "stdbool.h": "c"
+        "stdbool.h": "c",
+        "uart.h": "c",
+        "twi.h": "c"
     },
     "nrf-connect.topdir": "${nrf-connect.sdk:2.6.1}",
     "cortex-debug.variableUseNaturalFormat": false

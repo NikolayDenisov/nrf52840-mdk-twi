@@ -17,6 +17,9 @@ SRC_FILES += \
   $(SDK_ROOT)/external/segger_rtt/SEGGER_RTT_Syscalls_GCC.c \
   $(SDK_ROOT)/external/segger_rtt/SEGGER_RTT_printf.c \
   $(SDK_ROOT)/modules/nrfx/mdk/system_nrf52840.c \
+  $(PROJ_DIR)/src/uart.c \
+  $(PROJ_DIR)/src/twi.c \
+  $(PROJ_DIR)/src/hdc2080.c \
 
 # Include folders common to all targets
 INC_FOLDERS += \
@@ -35,6 +38,7 @@ INC_FOLDERS += \
   $(SDK_ROOT)/modules/nrfx/hal \
   $(SDK_ROOT)/components/boards \
   $(SDK_ROOT)/components/libraries/util \
+  $(PROJ_DIR)/include \
 
 # Libraries common to all targets
 LIB_FILES += \
