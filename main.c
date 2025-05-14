@@ -12,7 +12,6 @@ int main(void) {
   twi_init();
   reset();
   set_measurement_mode();
-  uart_send_string("Success!\r\n");
 
   while (true) {
     trigger_measurement();

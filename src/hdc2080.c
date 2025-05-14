@@ -1,7 +1,6 @@
 #include "hdc2080.h"
 #include "nrf_delay.h"
 #include "twi.h"
-#include "uart.h"
 
 void trigger_measurement(void) {
   uint8_t config_content = twi_read_register(MEASUREMENT_CONFIG);
@@ -10,17 +9,13 @@ void trigger_measurement(void) {
 }
 
 void reset() {
-  uart_send_string("Reset start!\r\n");
   twi_write_register(INT_CONFIG, 0x80);
   nrf_delay_ms(50);
-  uart_send_string("Reset finish!\r\n");
 }
 
 void set_measurement_mode() {
-  uart_send_string("Configuration start!\r\n");
   twi_write_register(MEASUREMENT_CONFIG, 0x02);
   nrf_delay_ms(130);
-  uart_send_string("Configuration finish!\r\n");
 }
 
 float read_temp(void) {
