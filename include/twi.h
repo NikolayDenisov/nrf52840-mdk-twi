@@ -3,8 +3,8 @@
 
 #include <stdint.h>
 
-#define TWI_SCL_PIN 26
-#define TWI_SDA_PIN 27
+#define TWI_SCL_PIN 6
+#define TWI_SDA_PIN 8
 #define HDC2080_ADDRESS 0x40
 
 void twi_wait_stop();

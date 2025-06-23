@@ -19,5 +19,6 @@
         "twi.h": "c"
     },
     "nrf-connect.topdir": "${nrf-connect.sdk:2.6.1}",
-    "cortex-debug.variableUseNaturalFormat": false
+    "cortex-debug.variableUseNaturalFormat": false,
+    "git.ignoreLimitWarning": true
 }
