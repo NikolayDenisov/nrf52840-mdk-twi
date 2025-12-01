@@ -46,3 +46,24 @@ void twi_init(void) {
   NRF_TWIM0->SHORTS = 0;
   NRF_TWIM0->ENABLE = TWIM_ENABLE_ENABLE_Enabled << TWIM_ENABLE_ENABLE_Pos;
 }
+
+void twi_read_registers(uint8_t reg, uint8_t *buf, uint8_t len) {
+  // Устанавливаем адрес устройства
+  NRF_TWIM0->ADDRESS = HDC2080_ADDRESS;
+
+  // ---------- Передаём адрес регистра (WRITE без STOP) ----------
+  NRF_TWIM0->TXD.PTR = (uint32_t)&reg;
+  NRF_TWIM0->TXD.MAXCNT = 1;
+  NRF_TWIM0->SHORTS = 0; // <-- без STOP
+  NRF_TWIM0->TASKS_STARTTX = 1;
+  while (!NRF_TWIM0->EVENTS_LASTTX)
+    ;
+  NRF_TWIM0->EVENTS_LASTTX = 0;
+
+  // ---------- Теперь читаем N байт (READ + STOP) ----------
+  NRF_TWIM0->RXD.PTR = (uint32_t)buf;
+  NRF_TWIM0->RXD.MAXCNT = len;
+  NRF_TWIM0->SHORTS = TWIM_SHORTS_LASTRX_STOP_Msk;
+  NRF_TWIM0->TASKS_STARTRX = 1;
+  twi_wait_stop();
+}

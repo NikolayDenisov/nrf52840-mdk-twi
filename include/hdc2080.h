@@ -51,5 +51,7 @@ void set_interrupt_polarity(int polarity);
 void set_interrupt_mode(int mode);
 void set_rate(int rate);
 void enable_drdy_interrupt(void);
+float hdc2080_read_humidity_2(void);
+uint8_t hdc2080_read_interrupt_status(void);
 
 #endif

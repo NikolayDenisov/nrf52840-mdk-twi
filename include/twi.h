@@ -13,5 +13,6 @@ void twi_rx(uint8_t *data, uint8_t len);
 void twi_write_register(uint8_t reg, uint8_t val);
 uint8_t twi_read_register(uint8_t reg);
 void twi_init(void);
+void twi_read_registers(uint8_t reg, uint8_t *buf, uint8_t len);
 
 #endif

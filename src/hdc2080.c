@@ -160,3 +160,13 @@ void set_rate(int rate) {
   }
   twi_write_register(INT_CONFIG, config_contents);
 }
+
+float hdc2080_read_humidity_2(void) {
+  uint8_t buf[2];
+  uint16_t raw;
+
+  twi_read_registers(HUMID_LOW, buf, 2);
+
+  raw = ((uint16_t)buf[1] << 8) | buf[0];
+  return (float)raw / 65536.0f * 100.0f;
+}

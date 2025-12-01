@@ -6,16 +6,17 @@
 #include "twi.h"
 #include "uart.h"
 
-#define HDC2080_INT_PIN 7
+#define HDC2080_INT_PIN 13
 
 void gpio_config_for_interrupt(void) {
-  NRF_P0->PIN_CNF[HDC2080_INT_PIN] =
+  NRF_P1->PIN_CNF[HDC2080_INT_PIN] =
       (GPIO_PIN_CNF_DIR_Input << GPIO_PIN_CNF_DIR_Pos) |
       (GPIO_PIN_CNF_INPUT_Connect << GPIO_PIN_CNF_INPUT_Pos) |
       (GPIO_PIN_CNF_PULL_Pullup << GPIO_PIN_CNF_PULL_Pos);
 
   NRF_GPIOTE->CONFIG[0] =
       (HDC2080_INT_PIN << GPIOTE_CONFIG_PSEL_Pos) |
+      (1 << GPIOTE_CONFIG_PORT_Pos) |
       (GPIOTE_CONFIG_MODE_Event << GPIOTE_CONFIG_MODE_Pos) |
       (GPIOTE_CONFIG_POLARITY_LoToHi << GPIOTE_CONFIG_POLARITY_Pos);
 
@@ -30,15 +31,19 @@ void GPIOTE_IRQHandler(void) {
     uint8_t status;
     status = hdc2080_read_interrupt_status();
     static float temperature = 0;
+    static float humidity = 0;
     temperature = read_temp();
     uart_send_float(temperature);
+    humidity = hdc2080_read_humidity_2();
+    uart_send_float(humidity);
+    uart_send_string("\r\n");
   }
 }
 
 void sensor_init(void) {
   // Инициализация датчика HDC2080
   reset();
-  set_rate(TEN_SECONDS);
+  set_rate(FIVE_SECONDS);
   enable_drdy_interrupt();
   enable_interrupt();
   set_interrupt_polarity(ACTIVE_HIGH);
